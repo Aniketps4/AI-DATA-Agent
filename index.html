@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Data Agent</title>
+  <!-- Updated React 18 CDNs -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+  <script src="https://unpkg.com/chart.js@4/dist/chart.umd.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    function App() {
+      const [query, setQuery] = useState('');
+      const [response, setResponse] = useState(null);
+      const [loading, setLoading] = useState(false);
+
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        console.log('Submitting query:', query); // Debug: Log query
+
+        if (!query.trim()) {
+          setResponse({ error: 'Please enter a query' });
+          setLoading(false);
+          return;
+        }
+
+        try {
+          const res = await fetch('http://localhost:3000/api/query', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query }),
+          });
+
+          if (!res.ok) {
+            throw new Error(`HTTP error! Status: ${res.status}`);
+          }
+
+          const data = await res.json();
+          console.log('Received response:', data); // Debug: Log response
+          setResponse(data);
+        } catch (error) {
+          console.error('Fetch error:', error.message);
+          setResponse({ error: `Failed to process query: ${error.message}` });
+        }
+        setLoading(false);
+      };
+
+      useEffect(() => {
+        if (response?.chartData) {
+          const ctx = document.getElementById('chart')?.getContext('2d');
+          if (ctx) {
+            // Destroy previous chart instance if it exists
+            if (window.myChart) {
+              window.myChart.destroy();
+            }
+            window.myChart = new Chart(ctx, {
+              type: response.chartType || 'bar',
+              data: response.chartData,
+              options: { scales: { y: { beginAtZero: true } } },
+            });
+          }
+        }
+      }, [response]);
+
+      return (
+        <div className="max-w-4xl mx-auto p-4">
+          <h1 className="text-2xl font-bold mb-4">AI Data Agent</h1>
+          <div className="mb-4">
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Enter your question (e.g., Which regions have highest sales?)"
+              className="w-full p-2 border rounded"
+            />
+            <button
+              onClick={handleSubmit}
+              className="mt-2 bg-blue-500 text-white p-2 rounded"
+              disabled={loading}
+            >
+              {loading ? 'Processing...' : 'Submit'}
+            </button>
+          </div>
+          {response && (
+            <div className="mt-4">
+              <h2 className="text-xl font-semibold">Response</h2>
+              <p className="mb-2">{response.answer || response.error}</p>
+              {response.table && (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full border">
+                    <thead>
+                      <tr>
+                        {response.table.headers.map((header, i) => (
+                          <th key={i} className="border p-2">{header}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {response.table.rows.map((row, i) => (
+                        <tr key={i}>
+                          {row.map((cell, j) => (
+                            <td key={j} className="border p-2">{cell}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {response.chartData && (
+                <div className="mt-4">
+                  <canvas id="chart"></canvas>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Use React 18 createRoot API
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
